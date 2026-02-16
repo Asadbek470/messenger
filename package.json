@@ -1,16 +1,15 @@
 {
   "name": "uzbek-messenger",
   "version": "1.0.0",
-  "description": "Real-time Uzbek Messenger with Socket.io",
+  "description": "Uzbek Messenger",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "cors": "^2.8.5",
-    "uuid": "^9.0.1",
-    "mongoose": "^8.0.3"
+    "uuid": "^9.0.1"
   }
 }
