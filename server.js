@@ -2,22 +2,17 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 app.use(cors());
 
-// Создаём HTTP сервер
 const server = http.createServer(app);
-
-// Подключаем Socket.IO
 const io = new Server(server);
 
 let users = {};
 let messages = [];
 
-// Socket логика
 io.on("connection", (socket) => {
 
   socket.on("register", (userData) => {
@@ -47,15 +42,21 @@ io.on("connection", (socket) => {
 
 });
 
-// 👉 ВАЖНО: отдаём папку public
-app.use(express.static(path.join(__dirname, "public")));
-
-// 👉 ВАЖНО: маршрут главной страницы
+// 👉 Главная страница прямо в коде
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.send(`
+    <html>
+      <head>
+        <title>Uzbek Messenger</title>
+      </head>
+      <body style="font-family: Arial; text-align:center;">
+        <h1>Uzbek Messenger работает 🚀</h1>
+        <p>Сервер успешно запущен.</p>
+      </body>
+    </html>
+  `);
 });
 
-// 👉 Обязательный порт для Render
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
