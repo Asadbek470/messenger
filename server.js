@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
@@ -42,20 +43,8 @@ io.on("connection", (socket) => {
 
 });
 
-// 👉 Главная страница прямо в коде
-app.get("/", (req, res) => {
-  res.send(`
-    <html>
-      <head>
-        <title>Uzbek Messenger</title>
-      </head>
-      <body style="font-family: Arial; text-align:center;">
-        <h1>Uzbek Messenger работает 🚀</h1>
-        <p>Сервер успешно запущен.</p>
-      </body>
-    </html>
-  `);
-});
+// Отдаём папку public
+app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 5000;
 
