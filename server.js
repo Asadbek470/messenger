@@ -1,53 +1,21 @@
 const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
-const { v4: uuidv4 } = require("uuid");
+
+const authRoutes = require("./routes/auth");
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
-const server = http.createServer(app);
-const io = new Server(server);
+mongoose.connect("YOUR_MONGODB_CONNECTION_STRING");
 
-let users = {};
-let messages = [];
+app.use("/api/auth", authRoutes);
 
-io.on("connection", (socket) => {
-
-  socket.on("register", (userData) => {
-    users[socket.id] = userData;
-    io.emit("users", Object.values(users));
-    socket.emit("chatHistory", messages);
-  });
-
-  socket.on("message", (text) => {
-    if (!users[socket.id]) return;
-
-    const msg = {
-      id: uuidv4(),
-      sender: users[socket.id].nickname,
-      text,
-      time: new Date().toLocaleTimeString()
-    };
-
-    messages.push(msg);
-    io.emit("message", msg);
-  });
-
-  socket.on("disconnect", () => {
-    delete users[socket.id];
-    io.emit("users", Object.values(users));
-  });
-
-});
-
-// Отдаём папку public
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 5000;
-
-server.listen(PORT, () => {
-  console.log("Uzbek Messenger running on " + PORT);
+app.listen(PORT, () => {
+  console.log("Server running on " + PORT);
 });
