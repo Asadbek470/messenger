@@ -3,245 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Uzbek Messenger</title>
-<script src="/socket.io/socket.io.js"></script>
-
+<title>Uzbek Messenger Local</title>
 <style>
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0f172a;
-  color: white;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* HEADER */
-header {
-  padding: 15px;
-  text-align: center;
-  background: #1e293b;
-  font-weight: bold;
-  font-size: 18px;
-}
-
-/* LOGIN */
-#login {
-  margin: auto;
-  width: 85%;
-  max-width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-#login input {
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  font-size: 16px;
-}
-
-#login button {
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  background: #3b82f6;
-  color: white;
-  font-size: 16px;
-}
-
-/* MAIN */
-#main {
-  display: none;
-  flex: 1;
-  flex-direction: column;
-}
-
-/* USERS BAR */
-#users {
-  display: flex;
-  overflow-x: auto;
-  gap: 10px;
-  padding: 10px;
-  background: #1e293b;
-}
-
-.user {
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: #334155;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.user.active {
-  background: #3b82f6;
-}
-
-/* CHAT */
-#chat {
-  flex: 1;
-  overflow-y: auto;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.message {
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 18px;
-  font-size: 14px;
-  word-wrap: break-word;
-}
-
-.mine {
-  align-self: flex-end;
-  background: #3b82f6;
-}
-
-.other {
-  align-self: flex-start;
-  background: #334155;
-}
-
-/* INPUT */
-#inputArea {
-  display: flex;
-  padding: 10px;
-  background: #1e293b;
-  gap: 8px;
-}
-
-#inputArea input {
-  flex: 1;
-  padding: 12px;
-  border-radius: 20px;
-  border: none;
-  font-size: 15px;
-}
-
-#inputArea button {
-  padding: 12px 18px;
-  border-radius: 20px;
-  border: none;
-  background: #3b82f6;
-  color: white;
-}
+body { margin:0; font-family:sans-serif; background:#0f172a; color:white }
+.hidden { display:none }
+#login, #setup { padding:20px }
+#app { height:100vh; display:flex; flex-direction:column }
+#chat { flex:1; overflow:auto; padding:10px }
+.message { margin:6px 0; padding:8px 12px; border-radius:12px; max-width:70% }
+.mine { background:#3b82f6; align-self:flex-end }
+.other { background:#334155 }
+#inputArea { display:flex; padding:10px; background:#1e293b }
+#inputArea input { flex:1; padding:8px }
+button { padding:8px }
 </style>
 </head>
-
 <body>
 
-<header>Uzbek Messenger 🚀</header>
-
-<div id="login">
-  <input id="nickname" placeholder="Введите никнейм">
-  <button onclick="register()">Войти</button>
+<div id="setup" class="hidden">
+<h2>Создать пароль</h2>
+<input type="password" id="newPassword" placeholder="Пароль">
+<button onclick="createPassword()">Создать</button>
 </div>
 
-<div id="main">
-  <div id="users"></div>
-  <div id="chat"></div>
-  <div id="inputArea">
-    <input id="messageText" placeholder="Сообщение...">
-    <button onclick="sendMessage()">→</button>
-  </div>
+<div id="login" class="hidden">
+<h2>Введите пароль</h2>
+<input type="password" id="loginPassword">
+<button onclick="login()">Войти</button>
 </div>
 
-<script>
-const socket = io();
+<div id="app" class="hidden">
+<div id="chat"></div>
+<div id="inputArea">
+<input id="messageInput">
+<button onclick="sendMessage()">➤</button>
+<input type="file" id="fileInput" accept="image/*,video/*" onchange="sendFile(event)">
+<button onclick="startVoice()">🎤</button>
+<button onclick="openSettings()">⚙</button>
+</div>
+</div>
 
-let myId = null;
-let currentRoom = null;
-
-// Регистрация
-function register() {
-  const nickname = document.getElementById("nickname").value.trim();
-  if (!nickname) return alert("Введите никнейм");
-
-  socket.emit("register", nickname);
-
-  document.getElementById("login").style.display = "none";
-  document.getElementById("main").style.display = "flex";
-}
-
-// Получаем свой ID
-socket.on("yourId", id => {
-  myId = id;
-});
-
-// Список пользователей
-socket.on("users", users => {
-  const usersDiv = document.getElementById("users");
-  usersDiv.innerHTML = "";
-
-  users.forEach(user => {
-    if (user.id !== myId) {
-      const div = document.createElement("div");
-      div.className = "user";
-      div.innerText = user.nickname;
-
-      div.onclick = () => {
-        const room = [myId, user.id].sort().join("_");
-        currentRoom = room;
-
-        socket.emit("startPrivateChat", user.id);
-
-        document.querySelectorAll(".user").forEach(u => u.classList.remove("active"));
-        div.classList.add("active");
-
-        document.getElementById("chat").innerHTML = "";
-      };
-
-      usersDiv.appendChild(div);
-    }
-  });
-});
-
-// Подключение к комнате
-socket.on("joinRoom", data => {
-  currentRoom = data.room;
-  socket.emit("joinRoom", data.room);
-});
-
-// Получение сообщений
-socket.on("privateMessage", msg => {
-  if (!currentRoom) return;
-
-  const div = document.createElement("div");
-  div.className = "message " + (msg.senderId === myId ? "mine" : "other");
-  div.innerText = msg.senderName + ": " + msg.text;
-
-  document.getElementById("chat").appendChild(div);
-
-  const chat = document.getElementById("chat");
-  chat.scrollTop = chat.scrollHeight;
-});
-
-// Отправка сообщения
-function sendMessage() {
-  const input = document.getElementById("messageText");
-  const text = input.value.trim();
-
-  if (!text || !currentRoom) return;
-
-  socket.emit("privateMessage", {
-    room: currentRoom,
-    text
-  });
-
-  input.value = "";
-}
-</script>
-
+<script src="storage.js"></script>
+<script src="ui.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
