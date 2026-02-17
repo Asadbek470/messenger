@@ -12,28 +12,80 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 let users = {};
-let messages = [];
+let privateRequests = {};
+let privateChats = {};
 
 io.on("connection", (socket) => {
 
-  socket.on("register", (userData) => {
-    users[socket.id] = userData;
-    io.emit("users", Object.values(users));
-    socket.emit("chatHistory", messages);
-  });
-
-  socket.on("message", (text) => {
-    if (!users[socket.id]) return;
-
-    const msg = {
+  // Регистрация
+  socket.on("register", (nickname) => {
+    const user = {
       id: uuidv4(),
-      sender: users[socket.id].nickname,
-      text,
-      time: new Date().toLocaleTimeString()
+      nickname,
+      socketId: socket.id
     };
 
-    messages.push(msg);
-    io.emit("message", msg);
+    users[socket.id] = user;
+    socket.emit("yourId", user.id);
+    io.emit("users", Object.values(users));
+  });
+
+  // Запрос на личный чат
+  socket.on("privateRequest", (targetId) => {
+    const sender = users[socket.id];
+    const target = Object.values(users).find(u => u.id === targetId);
+
+    if (!target) return;
+
+    io.to(target.socketId).emit("privateRequestReceived", {
+      fromId: sender.id,
+      fromName: sender.nickname
+    });
+  });
+
+  // Ответ на запрос
+  socket.on("privateResponse", ({ fromId, accepted }) => {
+    const currentUser = users[socket.id];
+    const requester = Object.values(users).find(u => u.id === fromId);
+
+    if (!requester) return;
+
+    if (accepted) {
+      const chatId = uuidv4();
+      privateChats[chatId] = [currentUser.id, requester.id];
+
+      io.to(requester.socketId).emit("privateAccepted", {
+        chatId,
+        with: currentUser
+      });
+
+      socket.emit("privateAccepted", {
+        chatId,
+        with: requester
+      });
+    } else {
+      io.to(requester.socketId).emit("privateRejected");
+    }
+  });
+
+  // Личное сообщение
+  socket.on("privateMessage", ({ chatId, text }) => {
+    const chat = privateChats[chatId];
+    if (!chat) return;
+
+    const sender = users[socket.id];
+
+    chat.forEach(userId => {
+      const user = Object.values(users).find(u => u.id === userId);
+      if (user) {
+        io.to(user.socketId).emit("privateMessage", {
+          chatId,
+          sender: sender.nickname,
+          text,
+          time: new Date().toLocaleTimeString()
+        });
+      }
+    });
   });
 
   socket.on("disconnect", () => {
@@ -51,5 +103,5 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 10000;
 
 server.listen(PORT, () => {
-  console.log("Uzbek Messenger running on " + PORT);
+  console.log("Messenger running on " + PORT);
 });
