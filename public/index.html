@@ -1,159 +1,187 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Uzbek Messenger</title>
+
 <script src="/socket.io/socket.io.js"></script>
 
 <style>
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: linear-gradient(135deg,#1e3c72,#2a5298);
+  background: #0f172a;
+  color: white;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  color: white;
 }
 
 header {
   padding: 15px;
   text-align: center;
+  background: #1e293b;
+  font-size: 20px;
   font-weight: bold;
-  background: rgba(0,0,0,0.3);
 }
 
-#status {
-  font-size: 12px;
-  color: #00ffcc;
-}
-
-#chat {
-  flex: 1;
-  overflow-y: auto;
-  padding: 15px;
+#login {
   display: flex;
   flex-direction: column;
-}
-
-.message {
-  margin-bottom: 10px;
-  padding: 10px 14px;
-  border-radius: 18px;
-  max-width: 70%;
-  word-wrap: break-word;
-}
-
-.me {
-  background: #00ffcc;
-  color: black;
-  align-self: flex-end;
-}
-
-.other {
-  background: rgba(255,255,255,0.2);
-}
-
-#controls {
-  display: flex;
-  padding: 10px;
-  background: rgba(0,0,0,0.3);
+  margin: auto;
+  gap: 10px;
+  width: 250px;
 }
 
 input {
-  flex: 1;
   padding: 10px;
-  border-radius: 20px;
   border: none;
-  margin-right: 5px;
-  outline: none;
+  border-radius: 8px;
 }
 
 button {
   padding: 10px;
-  border-radius: 20px;
   border: none;
-  background: #00ffcc;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
   cursor: pointer;
 }
 
 button:hover {
-  background: #00ddaa;
+  background: #2563eb;
+}
+
+#main {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+#users {
+  background: #1e293b;
+  padding: 10px;
+  overflow-y: auto;
+  height: 40%;
+}
+
+.user {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+#chat {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.message {
+  margin-bottom: 8px;
+}
+
+#messageInput {
+  display: flex;
+  padding: 10px;
+  background: #1e293b;
+}
+
+#messageInput input {
+  flex: 1;
+  margin-right: 5px;
 }
 </style>
 </head>
-
 <body>
 
-<header>
-  Uzbek Messenger 🚀
-  <div id="status">🟢 Online</div>
-</header>
+<header>Uzbek Messenger 🚀</header>
 
-<div id="chat"></div>
+<div id="login">
+  <input id="nickname" placeholder="Введите никнейм">
+  <button onclick="register()">Войти</button>
+</div>
 
-<div id="controls">
-  <input id="nickname" placeholder="Nickname">
-  <input id="message" placeholder="Write message...">
-  <button onclick="sendMessage()">Send</button>
-  <button onclick="startVoice()">🎤</button>
+<div id="main">
+  <div id="users"></div>
+  <div id="chat"></div>
+  <div id="messageInput">
+    <input id="messageText" placeholder="Сообщение...">
+    <button onclick="sendMessage()">Отправить</button>
+  </div>
 </div>
 
 <script>
 const socket = io();
-let nickname = "";
+let myId = null;
+let currentChat = null;
 
-socket.on("connect", () => {
-  document.getElementById("status").innerText = "🟢 Online";
+function register() {
+  const nickname = document.getElementById("nickname").value;
+  socket.emit("register", nickname);
+  document.getElementById("login").style.display = "none";
+  document.getElementById("main").style.display = "flex";
+}
+
+socket.on("yourId", (id) => {
+  myId = id;
 });
 
-socket.on("disconnect", () => {
-  document.getElementById("status").innerText = "🔴 Offline";
+socket.on("users", (users) => {
+  const usersDiv = document.getElementById("users");
+  usersDiv.innerHTML = "<h3>Пользователи:</h3>";
+
+  users.forEach(user => {
+    if (user.id !== myId) {
+      const div = document.createElement("div");
+      div.className = "user";
+      div.innerHTML = `
+        <span>${user.nickname}</span>
+        <button onclick="requestPrivate('${user.id}')">Написать</button>
+      `;
+      usersDiv.appendChild(div);
+    }
+  });
+});
+
+function requestPrivate(id) {
+  socket.emit("privateRequest", id);
+}
+
+socket.on("privateRequestReceived", (data) => {
+  const accept = confirm(`${data.fromName} хочет начать личный чат. Принять?`);
+  socket.emit("privateResponse", {
+    fromId: data.fromId,
+    accepted: accept
+  });
+});
+
+socket.on("privateAccepted", (data) => {
+  currentChat = data.chatId;
+  document.getElementById("chat").innerHTML = 
+    `<h3>Личный чат с ${data.with.nickname}</h3>`;
+});
+
+socket.on("privateMessage", (msg) => {
+  if (msg.chatId === currentChat) {
+    const div = document.createElement("div");
+    div.className = "message";
+    div.innerText = `${msg.sender}: ${msg.text} (${msg.time})`;
+    document.getElementById("chat").appendChild(div);
+  }
 });
 
 function sendMessage() {
-  if (!nickname) {
-    nickname = document.getElementById("nickname").value;
-    socket.emit("register", { nickname });
-  }
+  const text = document.getElementById("messageText").value;
+  if (!text || !currentChat) return;
 
-  const text = document.getElementById("message").value;
-  if (!text) return;
+  socket.emit("privateMessage", {
+    chatId: currentChat,
+    text
+  });
 
-  socket.emit("message", text);
-  document.getElementById("message").value = "";
-}
-
-socket.on("message", (msg) => {
-  const div = document.createElement("div");
-  div.classList.add("message");
-
-  if (msg.sender === nickname) {
-    div.classList.add("me");
-  } else {
-    div.classList.add("other");
-  }
-
-  div.innerText = msg.sender + ": " + msg.text;
-  document.getElementById("chat").appendChild(div);
-  document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
-});
-
-// 🎤 Голосовой ввод
-function startVoice() {
-  if (!('webkitSpeechRecognition' in window)) {
-    alert("Voice input not supported in this browser");
-    return;
-  }
-
-  const recognition = new webkitSpeechRecognition();
-  recognition.lang = "ru-RU";
-  recognition.start();
-
-  recognition.onresult = function(event) {
-    document.getElementById("message").value = event.results[0][0].transcript;
-  };
+  document.getElementById("messageText").value = "";
 }
 </script>
 
