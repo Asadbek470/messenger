@@ -12,12 +12,14 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 let users = {};
-let privateRequests = {};
-let privateChats = {};
+let chats = {}; // хранение комнат
+
+function createRoom(id1, id2) {
+  return [id1, id2].sort().join("_");
+}
 
 io.on("connection", (socket) => {
 
-  // Регистрация
   socket.on("register", (nickname) => {
     const user = {
       id: uuidv4(),
@@ -30,61 +32,37 @@ io.on("connection", (socket) => {
     io.emit("users", Object.values(users));
   });
 
-  // Запрос на личный чат
-  socket.on("privateRequest", (targetId) => {
-    const sender = users[socket.id];
-    const target = Object.values(users).find(u => u.id === targetId);
+  // Запрос на приватный чат
+  socket.on("startPrivateChat", (targetId) => {
+    const currentUser = users[socket.id];
+    const targetUser = Object.values(users).find(u => u.id === targetId);
 
-    if (!target) return;
+    if (!targetUser) return;
 
-    io.to(target.socketId).emit("privateRequestReceived", {
-      fromId: sender.id,
-      fromName: sender.nickname
+    const room = createRoom(currentUser.id, targetUser.id);
+
+    socket.join(room);
+    io.to(targetUser.socketId).emit("joinRoom", {
+      room,
+      from: currentUser
     });
   });
 
-  // Ответ на запрос
-  socket.on("privateResponse", ({ fromId, accepted }) => {
-    const currentUser = users[socket.id];
-    const requester = Object.values(users).find(u => u.id === fromId);
-
-    if (!requester) return;
-
-    if (accepted) {
-      const chatId = uuidv4();
-      privateChats[chatId] = [currentUser.id, requester.id];
-
-      io.to(requester.socketId).emit("privateAccepted", {
-        chatId,
-        with: currentUser
-      });
-
-      socket.emit("privateAccepted", {
-        chatId,
-        with: requester
-      });
-    } else {
-      io.to(requester.socketId).emit("privateRejected");
-    }
+  // Подключение к комнате
+  socket.on("joinRoom", (room) => {
+    socket.join(room);
   });
 
   // Личное сообщение
-  socket.on("privateMessage", ({ chatId, text }) => {
-    const chat = privateChats[chatId];
-    if (!chat) return;
-
+  socket.on("privateMessage", ({ room, text }) => {
     const sender = users[socket.id];
+    if (!sender) return;
 
-    chat.forEach(userId => {
-      const user = Object.values(users).find(u => u.id === userId);
-      if (user) {
-        io.to(user.socketId).emit("privateMessage", {
-          chatId,
-          sender: sender.nickname,
-          text,
-          time: new Date().toLocaleTimeString()
-        });
-      }
+    io.to(room).emit("privateMessage", {
+      senderId: sender.id,
+      senderName: sender.nickname,
+      text,
+      time: new Date().toLocaleTimeString()
     });
   });
 
@@ -92,6 +70,7 @@ io.on("connection", (socket) => {
     delete users[socket.id];
     io.emit("users", Object.values(users));
   });
+
 });
 
 app.use(express.static(path.join(__dirname, "public")));
