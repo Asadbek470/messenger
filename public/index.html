@@ -1,164 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Uzbek Messenger</title>
-<script src="/socket.io/socket.io.js"></script>
-
-<style>
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0f172a;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  color: white;
-}
-
-/* HEADER */
-header {
-  padding: 15px;
-  text-align: center;
-  font-weight: bold;
-  font-size: 18px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
-}
-
-/* LOGIN */
-#login {
-  margin: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 85%;
-  max-width: 350px;
-}
-
-#login input {
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  font-size: 16px;
-}
-
-#login button {
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  background: #3b82f6;
-  color: white;
-  font-size: 16px;
-}
-
-/* MAIN */
-#main {
-  display: none;
-  flex: 1;
-  flex-direction: column;
-}
-
-/* CHAT AREA */
-#chat {
-  flex: 1;
-  overflow-y: auto;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* MESSAGE BUBBLES */
-.message {
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 18px;
-  font-size: 14px;
-  word-wrap: break-word;
-}
-
-.mine {
-  align-self: flex-end;
-  background: #3b82f6;
-}
-
-.other {
-  align-self: flex-start;
-  background: #334155;
-}
-
-/* INPUT AREA */
-#inputArea {
-  display: flex;
-  padding: 10px;
-  background: #1e293b;
-  gap: 8px;
-}
-
-#inputArea input {
-  flex: 1;
-  padding: 12px;
-  border-radius: 20px;
-  border: none;
-  font-size: 15px;
-}
-
-#inputArea button {
-  padding: 12px 18px;
-  border-radius: 20px;
-  border: none;
-  background: #3b82f6;
-  color: white;
-}
-
-/* USERS LIST (мобильный) */
-#users {
-  background: #1e293b;
-  padding: 10px;
-  overflow-x: auto;
-  display: flex;
-  gap: 10px;
-}
-
-.user {
-  background: #334155;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
-}
-</style>
-</head>
-
-<body>
-
-<header>Uzbek Messenger 🚀</header>
-
-<div id="login">
-  <input id="nickname" placeholder="Введите никнейм">
-  <button onclick="register()">Войти</button>
-</div>
-
-<div id="main">
-  <div id="users"></div>
-  <div id="chat"></div>
-
-  <div id="inputArea">
-    <input id="messageText" placeholder="Сообщение...">
-    <button onclick="sendMessage()">→</button>
-  </div>
-</div>
-
 <script>
 const socket = io();
+
 let myId = null;
-let currentChat = null;
+let currentRoom = null;
 
 function register() {
   const nickname = document.getElementById("nickname").value;
@@ -178,39 +22,45 @@ socket.on("users", users => {
       const div = document.createElement("div");
       div.className = "user";
       div.innerText = user.nickname;
+
       div.onclick = () => {
-        currentChat = user.id;
+        const room = [myId, user.id].sort().join("_");
+        currentRoom = room;
+        socket.emit("startPrivateChat", user.id);
         document.getElementById("chat").innerHTML = "";
       };
+
       usersDiv.appendChild(div);
     }
   });
 });
 
+socket.on("joinRoom", data => {
+  currentRoom = data.room;
+  socket.emit("joinRoom", data.room);
+});
+
 socket.on("privateMessage", msg => {
-  if (msg.chatId !== currentChat) return;
+  if (!currentRoom) return;
 
   const div = document.createElement("div");
   div.className = "message " + (msg.senderId === myId ? "mine" : "other");
-  div.innerText = msg.text;
-  document.getElementById("chat").appendChild(div);
+  div.innerText = msg.senderName + ": " + msg.text;
 
+  document.getElementById("chat").appendChild(div);
   document.getElementById("chat").scrollTop =
     document.getElementById("chat").scrollHeight;
 });
 
 function sendMessage() {
   const text = document.getElementById("messageText").value;
-  if (!text || !currentChat) return;
+  if (!text || !currentRoom) return;
 
   socket.emit("privateMessage", {
-    chatId: currentChat,
+    room: currentRoom,
     text
   });
 
   document.getElementById("messageText").value = "";
 }
 </script>
-
-</body>
-</html>
